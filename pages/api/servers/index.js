@@ -1,5 +1,5 @@
 // pages/api/servers/index.js
-import { getApiUrl, getDefaultHeaders } from '../../lib/api-config';
+import { getApiUrl, getDefaultHeaders } from '../../../lib/api-config';
 
 // Dados base para complementar informações que podem não estar disponíveis na API
 const defaultServerData = {
