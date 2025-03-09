@@ -1,74 +1,23 @@
 // pages/api/servers/[id].js
+import { getApiUrl, getDefaultHeaders } from '../../../lib/api-config';
 
-// Server details with expanded information
-const serversDetails = {
-  "32225312": {
-    id: "32225312", 
-    name: "Rust Survival",
-    game: "rust",
-    status: "online",
-    players: 0,
-    maxPlayers: 60,
-    address: "Unknown",
-    map: "Unknown",
-    seed: "328564061",
-    worldSize: "4000",
-    description: "Servidor focado em te proporcionar a melhor experiência de sobrevivência e aproveitar todos os recursos do jogo. Regras balanceadas, economia sustentável e comunidade ativa te esperam.",
-    logo: "logo.png",
-    wipeSchedule: "Primeira quinta-feira do mês",
-    features: ["Casual", "Survival", "2x", "Events"],
-    modded: false,
-    rules: [
-      "Não é permitido usar cheats ou exploits",
-      "Respeite outros jogadores no chat",
-      "Construções tóxicas serão removidas",
-      "Times limitados a 5 membros"
-    ],
-    discordUrl: "https://discord.gg/v8575VMgPW",
-    connectCommand: "client.connect 82.29.62.21:28015",
-    nextWipe: "2025-04-07T12:00:00Z",
-    adminContacts: ["Discord: thezanardine"],
-    bannerImage: "/images/rust_banner.png",
-    /*mods: [
-      "PVP Enhancement",
-      "Better Loot",
-      "Arena Framework",
-      "Advanced Combat"
-    ]*/
-  }
-};
-
-// Dados mockados para o leaderboard e eventos
-const mockLeaderboard = {
-  "32225312": [
-    { playerId: "1", playerName: "PhanteonPlayer1", kills: 150, deaths: 45, playtime: 1820, lastSeen: "2023-03-01T10:23:00Z" },
-    { playerId: "2", playerName: "RustWarrior", kills: 120, deaths: 38, playtime: 1540, lastSeen: "2023-03-02T18:15:00Z" },
-    { playerId: "3", playerName: "IronBuilder", kills: 95, deaths: 52, playtime: 2100, lastSeen: "2023-03-03T14:30:00Z" },
-    { playerId: "4", playerName: "SaltyRaider", kills: 88, deaths: 60, playtime: 1320, lastSeen: "2023-03-02T21:45:00Z" },
-    { playerId: "5", playerName: "BaseMaster", kills: 75, deaths: 30, playtime: 990, lastSeen: "2023-03-03T08:10:00Z" },
-    { playerId: "6", playerName: "RaidMaster", kills: 67, deaths: 42, playtime: 850, lastSeen: "2023-03-02T15:20:00Z" },
-    { playerId: "7", playerName: "RustSniper", kills: 61, deaths: 25, playtime: 780, lastSeen: "2023-03-03T09:45:00Z" },
-    { playerId: "8", playerName: "BradleyKiller", kills: 58, deaths: 33, playtime: 920, lastSeen: "2023-03-01T22:30:00Z" },
-    { playerId: "9", playerName: "HeliHunter", kills: 52, deaths: 28, playtime: 650, lastSeen: "2023-03-02T17:15:00Z" },
-    { playerId: "10", playerName: "ScrapCollector", kills: 45, deaths: 30, playtime: 1100, lastSeen: "2023-03-03T11:40:00Z" },
-    { playerId: "11", playerName: "OilRigDominator", kills: 40, deaths: 22, playtime: 580, lastSeen: "2023-03-02T14:55:00Z" },
-    { playerId: "12", playerName: "CargoRunner", kills: 38, deaths: 18, playtime: 720, lastSeen: "2023-03-01T19:20:00Z" },
-    { playerId: "13", playerName: "RocketLauncher", kills: 35, deaths: 24, playtime: 430, lastSeen: "2023-03-03T13:10:00Z" },
-    { playerId: "14", playerName: "SulfurFarmer", kills: 30, deaths: 35, playtime: 860, lastSeen: "2023-03-02T16:05:00Z" },
-    { playerId: "15", playerName: "BaseDesigner", kills: 25, deaths: 20, playtime: 1250, lastSeen: "2023-03-01T12:45:00Z" }
-  ]
-};
-
-const mockEvents = {
-  "32225312": [
-    { 
-      id: "1", 
-      title: "Wipe Semanal", 
-      description: "Reset completo do servidor, incluindo itens, construções e blueprints.", 
-      date: "2025-03-20T12:00:00Z",
-      image: "/images/events/wipe.jpg"
-    }
-  ]
+// Dados padrão para campos que podem estar ausentes na API
+const defaultServerDetails = {
+  description: "Servidor focado em te proporcionar a melhor experiência de sobrevivência e aproveitar todos os recursos do jogo. Regras balanceadas, economia sustentável e comunidade ativa te esperam.",
+  logo: "/images/rust_banner2.png",
+  bannerImage: "/images/rust_banner.png",
+  wipeSchedule: "Primeira quinta-feira do mês",
+  features: ["Casual", "Survival", "2x", "Events"],
+  modded: false,
+  rules: [
+    "Não é permitido usar cheats ou exploits",
+    "Respeite outros jogadores no chat",
+    "Construções tóxicas serão removidas",
+    "Times limitados a 5 membros"
+  ],
+  discordUrl: "https://discord.gg/v8575VMgPW",
+  connectCommand: "client.connect 82.29.62.21:28015",
+  adminContacts: ["Discord: thezanardine"]
 };
 
 export default async function handler(req, res) {
@@ -83,70 +32,212 @@ export default async function handler(req, res) {
   }
   
   try {
-    // Get the cached server details
-    const serverData = serversDetails[id];
+    // ETAPA 1: Buscar detalhes do servidor
+    console.log(`Fetching server details for ID: ${id}`);
     
-    if (!serverData) {
-      return res.status(404).json({ error: 'Server not found' });
-    }
+    const serverUrl = `${getApiUrl('/api/public/serverstats')}/${id}`;
+    const serverResponse = await fetch(serverUrl, {
+      method: 'GET',
+      headers: getDefaultHeaders(),
+    });
     
-    let updatedServer = JSON.parse(JSON.stringify(serverData));
+    let serverData = {};
+    let useFallback = false;
     
-    // Update data from BattleMetrics for Rust servers
-    if (serverData.game === 'rust') {
+    if (!serverResponse.ok) {
+      console.warn(`Failed to fetch server details (Status: ${serverResponse.status}), using fallback data`);
+      useFallback = true;
+    } else {
       try {
-        console.log(`Fetching BattleMetrics data for server ${id}`);
-        const response = await fetch(`https://api.battlemetrics.com/servers/${id}`);
-        
-        if (response.ok) {
-          const data = await response.json();
-          
-          if (data && data.data) {
-            console.log(`Successfully fetched BattleMetrics data for server ${id}`);
-            const serverInfo = data.data;
-            const attributes = serverInfo.attributes;
-            const details = attributes.details || {};
-            
-            // Update server with live data from BattleMetrics
-            updatedServer.status = attributes.status || updatedServer.status;
-            updatedServer.players = attributes.players || 0;
-            updatedServer.maxPlayers = attributes.maxPlayers || updatedServer.maxPlayers;
-            updatedServer.address = `${attributes.ip}:${attributes.port}` || updatedServer.address;
-            updatedServer.map = details.map || updatedServer.map;
-            updatedServer.seed = details.rust_seed || updatedServer.seed;
-            updatedServer.worldSize = details.rust_world_size || updatedServer.worldSize;
-            updatedServer.lastWipe = details.rust_last_wipe || updatedServer.lastWipe;
-            
-            // Log values for debugging
-            console.log("Updated server data:", {
-              status: updatedServer.status,
-              players: updatedServer.players,
-              map: updatedServer.map,
-              seed: updatedServer.seed
-            });
-          } else {
-            console.warn(`Invalid data structure from BattleMetrics for server ${id}`);
-          }
+        const responseData = await serverResponse.json();
+        if (responseData.success && responseData.server) {
+          serverData = responseData.server;
         } else {
-          console.warn(`BattleMetrics API returned status ${response.status} for server ${id}`);
+          console.warn('Unexpected server response format:', responseData);
+          useFallback = true;
         }
-      } catch (error) {
-        console.error(`Error fetching BattleMetrics data for server ${id}:`, error);
+      } catch (parseError) {
+        console.error('Error parsing server response:', parseError);
+        useFallback = true;
       }
     }
     
-    // Get leaderboard and events data
-    const leaderboard = mockLeaderboard[id] || [];
-    const events = mockEvents[id] || [];
+    // Construir objeto de servidor combinando dados da API com defaults
+    const server = {
+      id: id,
+      name: serverData.server_name || "Rust Survival",
+      game: serverData.protocol || "rust",
+      status: serverData.status || "online",
+      players: serverData.online_players || 0,
+      maxPlayers: serverData.max_players || 60,
+      address: serverData.address || "82.29.62.21:28015",
+      map: serverData.map || "Unknown",
+      seed: serverData.seed || "328564061",
+      worldSize: serverData.size || "4000",
+      lastWipe: serverData.last_wipe || null,
+      description: serverData.description || defaultServerDetails.description,
+      logo: serverData.logo || defaultServerDetails.logo,
+      bannerImage: serverData.banner_image || defaultServerDetails.bannerImage,
+      wipeSchedule: serverData.wipe_schedule || defaultServerDetails.wipeSchedule,
+      features: serverData.features || defaultServerDetails.features,
+      modded: serverData.modded || defaultServerDetails.modded,
+      rules: serverData.rules || defaultServerDetails.rules,
+      discordUrl: serverData.discord_url || defaultServerDetails.discordUrl,
+      connectCommand: serverData.connect_command || `client.connect ${serverData.address || "82.29.62.21:28015"}`,
+      adminContacts: serverData.admin_contacts || defaultServerDetails.adminContacts,
+      nextWipe: serverData.next_wipe || null
+    };
     
-    // Return complete server data
+    // ETAPA 2: Buscar Dados de Leaderboard
+    console.log(`Fetching leaderboard for server ID: ${id}`);
+    
+    let leaderboard = [];
+    
+    try {
+      const leaderboardUrl = `${getApiUrl('/api/public/players')}?limit=15&serverId=${id}`;
+      const leaderboardResponse = await fetch(leaderboardUrl, {
+        method: 'GET',
+        headers: getDefaultHeaders(),
+      });
+      
+      if (leaderboardResponse.ok) {
+        const leaderboardData = await leaderboardResponse.json();
+        
+        if (leaderboardData.success && leaderboardData.players) {
+          leaderboard = leaderboardData.players.map(player => ({
+            playerId: player.steam_id,
+            playerName: player.name,
+            kills: player.kills || 0,
+            deaths: player.deaths || 0,
+            playtime: player.time_played || 0,
+            lastSeen: player.last_seen || new Date().toISOString()
+          }));
+        } else {
+          console.warn('Unexpected leaderboard response format:', leaderboardData);
+          // Usar leaderboard vazio
+        }
+      } else {
+        console.warn(`Failed to fetch leaderboard (Status: ${leaderboardResponse.status})`);
+        // Usar leaderboard vazio
+      }
+    } catch (leaderboardError) {
+      console.error('Error fetching leaderboard:', leaderboardError);
+      // Continuar com leaderboard vazio
+    }
+    
+    // ETAPA 3: Buscar Eventos Recentes
+    console.log(`Fetching events for server ID: ${id}`);
+    
+    let events = [];
+    
+    try {
+      const eventsUrl = `${getApiUrl('/api/public/events')}?limit=5&serverId=${id}`;
+      const eventsResponse = await fetch(eventsUrl, {
+        method: 'GET',
+        headers: getDefaultHeaders(),
+      });
+      
+      if (eventsResponse.ok) {
+        const eventsData = await eventsResponse.json();
+        
+        if (eventsData.success && eventsData.events) {
+          events = eventsData.events.map(event => {
+            // Converter nomes de eventos para formatos amigáveis
+            let title = event.event_type || '';
+            title = title.replace('event.', '').replace('player.', '');
+            title = title.split('.').map(word => 
+              word.charAt(0).toUpperCase() + word.slice(1)
+            ).join(' ');
+            
+            return {
+              id: event.id || `event-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              title: title,
+              description: event.payload?.message || "Evento de servidor",
+              date: event.timestamp || new Date().toISOString(),
+              image: "/images/events/wipe.jpg"
+            };
+          });
+        } else {
+          console.warn('Unexpected events response format:', eventsData);
+          // Usar array de eventos vazio
+        }
+      } else {
+        console.warn(`Failed to fetch events (Status: ${eventsResponse.status})`);
+        // Usar array de eventos vazio
+      }
+    } catch (eventsError) {
+      console.error('Error fetching events:', eventsError);
+      // Continuar com array de eventos vazio
+    }
+    
+    // Se não houver eventos, adicionar um evento padrão de wipe
+    if (events.length === 0) {
+      const nextMonth = new Date();
+      nextMonth.setMonth(nextMonth.getMonth() + 1);
+      nextMonth.setDate(1); // Primeiro dia do próximo mês
+      
+      events.push({
+        id: "default-wipe-event",
+        title: "Wipe Semanal",
+        description: "Reset completo do servidor, incluindo itens, construções e blueprints.",
+        date: nextMonth.toISOString(),
+        image: "/images/events/wipe.jpg"
+      });
+    }
+    
+    // ETAPA 4: Retornar todos os dados consolidados
     return res.status(200).json({
-      server: updatedServer,
+      server,
       leaderboard,
       events
     });
+    
   } catch (error) {
     console.error('Error fetching server details:', error);
-    return res.status(500).json({ error: error.message || 'Failed to fetch server details' });
+    
+    // Em caso de erro, retornar dados padrão para não quebrar a UI
+    const fallbackServer = {
+      id: id,
+      name: "Rust Survival",
+      game: "rust",
+      status: "online",
+      players: 0,
+      maxPlayers: 60,
+      address: "82.29.62.21:28015",
+      map: "Unknown",
+      seed: "328564061",
+      worldSize: "4000",
+      description: defaultServerDetails.description,
+      logo: defaultServerDetails.logo,
+      bannerImage: defaultServerDetails.bannerImage,
+      wipeSchedule: defaultServerDetails.wipeSchedule,
+      features: defaultServerDetails.features,
+      modded: defaultServerDetails.modded,
+      rules: defaultServerDetails.rules,
+      discordUrl: defaultServerDetails.discordUrl,
+      connectCommand: defaultServerDetails.connectCommand,
+      adminContacts: defaultServerDetails.adminContacts
+    };
+    
+    // Mock leaderboard vazio
+    const fallbackLeaderboard = [];
+    
+    // Evento wipe padrão para manter a consistência da UI
+    const fallbackEvents = [
+      { 
+        id: "default-wipe-event",
+        title: "Wipe Semanal", 
+        description: "Reset completo do servidor, incluindo itens, construções e blueprints.", 
+        date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        image: "/images/events/wipe.jpg"
+      }
+    ];
+    
+    // Retornar dados padrão
+    return res.status(200).json({
+      server: fallbackServer,
+      leaderboard: fallbackLeaderboard,
+      events: fallbackEvents
+    });
   }
 }
