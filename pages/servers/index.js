@@ -16,6 +16,14 @@ export default function ServersPage() {
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  // Novo state para estatísticas
+  const [communityStats, setCommunityStats] = useState({
+    totalPlayers: 0,
+    activePlayers: 0,
+    totalServers: 0,
+    totalEvents: 0,
+    activeSubscriptions: 0
+  });
   
   const tabs = [
     { id: 'all', label: 'Todos', icon: <FiServer /> },
@@ -53,12 +61,31 @@ export default function ServersPage() {
     }
   };
 
+  // Nova função para buscar estatísticas gerais
+  const fetchCommunityStats = async () => {
+    try {
+      const response = await fetch('/api/stats/overview');
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch community stats');
+      }
+      
+      const data = await response.json();
+      setCommunityStats(data);
+    } catch (err) {
+      console.error('Error fetching community stats:', err);
+      // Mantemos os stats padrão em caso de erro
+    }
+  };
+
   useEffect(() => {
     fetchServers();
+    fetchCommunityStats(); // Carregar estatísticas
     
     // Set up auto-refresh every 60 seconds
     const interval = setInterval(() => {
       fetchServers();
+      fetchCommunityStats();
     }, 60000);
     
     return () => clearInterval(interval);
@@ -67,6 +94,7 @@ export default function ServersPage() {
   const handleRefresh = () => {
     setRefreshing(true);
     fetchServers();
+    fetchCommunityStats();
   };
   
   // Filter servers based on search query
@@ -234,7 +262,7 @@ export default function ServersPage() {
           </div>
         </section>
         
-        {/* Community Stats Section */}
+        {/* Community Stats Section - ATUALIZADO PARA USAR DADOS REAIS */}
         <section className="py-16 bg-gradient-to-b from-dark-300 to-dark-400">
           <div className="container-custom mx-auto px-4">
             <div className="text-center mb-12">
@@ -248,35 +276,51 @@ export default function ServersPage() {
             
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               <Card className="text-center p-6 border border-dark-200 hover:border-primary/30 transition-all duration-300 hover:-translate-y-1">
-                <div className="bg-primary/20 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-                  <FiUsers className="text-primary text-2xl" />
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-gray-400 text-sm">Jogadores Registrados</h4>
+                    <p className="text-3xl font-bold text-white mb-2">{communityStats.totalPlayers}</p>
+                  </div>
+                  <div className="rounded-full bg-primary/20 p-3">
+                    <FiUsers className="text-primary text-2xl" />
+                  </div>
                 </div>
-                <h3 className="text-3xl font-bold text-white mb-2">0</h3>
-                <p className="text-gray-400">Jogadores Registrados</p>
               </Card>
               
               <Card className="text-center p-6 border border-dark-200 hover:border-primary/30 transition-all duration-300 hover:-translate-y-1">
-                <div className="bg-primary/20 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-                  <FiServer className="text-primary text-2xl" />
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-gray-400 text-sm">Servidores Ativos</h4>
+                    <p className="text-3xl font-bold text-white mb-2">{communityStats.totalServers}</p>
+                  </div>
+                  <div className="rounded-full bg-primary/20 p-3">
+                    <FiServer className="text-primary text-2xl" />
+                  </div>
                 </div>
-                <h3 className="text-3xl font-bold text-white mb-2">1</h3>
-                <p className="text-gray-400">Servidores Ativos</p>
               </Card>
               
               <Card className="text-center p-6 border border-dark-200 hover:border-primary/30 transition-all duration-300 hover:-translate-y-1">
-                <div className="bg-primary/20 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-                  <FiCrosshair className="text-primary text-2xl" />
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-gray-400 text-sm">Eventos Realizados</h4>
+                    <p className="text-3xl font-bold text-white mb-2">{communityStats.totalEvents}</p>
+                  </div>
+                  <div className="rounded-full bg-primary/20 p-3">
+                    <FiCrosshair className="text-primary text-2xl" />
+                  </div>
                 </div>
-                <h3 className="text-3xl font-bold text-white mb-2">0</h3>
-                <p className="text-gray-400">Eventos Realizados</p>
               </Card>
               
               <Card className="text-center p-6 border border-dark-200 hover:border-primary/30 transition-all duration-300 hover:-translate-y-1">
-                <div className="bg-primary/20 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-                  <FiShield className="text-primary text-2xl" />
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-gray-400 text-sm">Assinaturas VIP</h4>
+                    <p className="text-3xl font-bold text-white mb-2">{communityStats.activeSubscriptions}</p>
+                  </div>
+                  <div className="rounded-full bg-primary/20 p-3">
+                    <FiShield className="text-primary text-2xl" />
+                  </div>
                 </div>
-                <h3 className="text-3xl font-bold text-white mb-2">0</h3>
-                <p className="text-gray-400">Assinaturas VIP</p>
               </Card>
             </div>
           </div>

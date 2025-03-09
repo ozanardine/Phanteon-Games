@@ -223,12 +223,12 @@ const SteamIdModal = ({ isOpen, onClose, steamId, setSteamId, onSave, loading, i
             <div>
               <p className="text-gray-300 text-sm">
                 Para encontrar seu Steam ID, acesse{' '}
-                <a
+                
                   href="https://steamid.io/"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-primary hover:underline font-medium"
-                >
+                <a>
                   steamid.io
                 </a>{' '}
                 e insira o link do seu perfil.
@@ -315,22 +315,67 @@ const HistoryModal = ({ isOpen, onClose, history, loading }) => {
 
 // VIP Instructions Component
 const VipInstructions = () => {
+  // NOVO: Vamos buscar comandos VIP específicos
+  const [vipCommands, setVipCommands] = useState([
+    { command: '/resgatar', description: 'Resgata seus itens VIP no servidor' },
+    { command: '/vip', description: 'Exibe informações sobre seu status VIP' }
+  ]);
+
+  // NOVO: Tenta buscar os comandos da API
+  useEffect(() => {
+    const fetchVipCommands = async () => {
+      try {
+        const response = await fetch('/api/vip/commands');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.commands && Array.isArray(data.commands)) {
+            setVipCommands(data.commands);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching VIP commands:", error);
+      }
+    };
+
+    fetchVipCommands();
+  }, []);
+
   return (
     <Card className="mt-8">
       <Card.Header>
         <Card.Title>Como usar seu VIP</Card.Title>
       </Card.Header>
       <Card.Body>
-        <div className="space-y-4">
+        <div className="space-y-6">
           <div>
-            <p className="text-gray-300 mb-2">
-              Para resgatar seus itens VIP, utilize o comando:
+            <p className="text-gray-300 mb-3">
+              Para aproveitar todas as vantagens do seu VIP, utilize os seguintes comandos:
             </p>
-            <div className="bg-dark-400 p-3 rounded font-mono text-sm text-gray-300">
-              /resgatar
+            
+            <div className="grid gap-3">
+              {vipCommands.map((cmd, index) => (
+                <div key={index} className="bg-dark-400 p-3 rounded border border-dark-300 flex flex-col md:flex-row md:items-center md:justify-between">
+                  <div className="font-mono text-sm text-primary mb-2 md:mb-0">
+                    {cmd.command}
+                  </div>
+                  <div className="text-gray-400 text-sm">
+                    {cmd.description}
+                  </div>
+                </div>
+              ))}
             </div>
-            <p className="text-gray-400 text-sm mt-2">
-              Caso seu inventário esteja cheio, você receberá instruções no jogo.
+          </div>
+          
+          <div className="bg-primary/10 p-4 rounded-lg border border-primary/20">
+            <h4 className="text-white font-medium flex items-center mb-2">
+              <svg className="w-5 h-5 mr-2 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+              Dica Importante
+            </h4>
+            <p className="text-gray-300 text-sm">
+              Caso seu inventário esteja cheio ao resgatar os itens, eles serão colocados em uma 
+              caixa de armazenamento próxima a você. Certifique-se de ter espaço disponível!
             </p>
           </div>
         </div>
@@ -343,7 +388,7 @@ const VipInstructions = () => {
 // MAIN COMPONENT - Refactored with optimizations
 // ==========================================
 
-export default function PerfilPage({ userData, subscriptionData, errorMessage, newUser }) {
+export default function PerfilPage({ userData, subscriptionData, errorMessage, newUser, subscriptionHistory: initialHistory }) {
   const { data: session } = useSession();
   const router = useRouter();
   
@@ -351,9 +396,11 @@ export default function PerfilPage({ userData, subscriptionData, errorMessage, n
   const [steamId, setSteamId] = useState(userData?.steam_id || '');
   const [loading, setLoading] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(newUser === true || !userData?.steam_id);
-  const [subscriptionHistory, setSubscriptionHistory] = useState([]);
+  const [subscriptionHistory, setSubscriptionHistory] = useState(initialHistory || []);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  // NOVO: Adicionamos um estado para verificar regularmente o status da assinatura
+  const [isVerifyingSubscription, setIsVerifyingSubscription] = useState(false);
 
   // Memoize the state for whether the user has active subscription
   const hasActiveSubscription = useMemo(() => {
@@ -380,11 +427,41 @@ export default function PerfilPage({ userData, subscriptionData, errorMessage, n
     }
   }, [userData, newUser]);
 
+  // NOVO: Effect para verificar o status da assinatura a cada 1 minuto
+  useEffect(() => {
+    const verifySubscription = async () => {
+      if (!session?.user?.discord_id || !userData?.id) return;
+      
+      try {
+        setIsVerifyingSubscription(true);
+        const response = await fetch('/api/subscriptions/verify');
+        
+        if (response.ok) {
+          const data = await response.json();
+          
+          // Se o status da assinatura mudou, atualizar a página
+          if (data.active !== hasActiveSubscription) {
+            router.replace(router.asPath);
+          }
+        }
+      } catch (error) {
+        console.error('Erro ao verificar assinatura:', error);
+      } finally {
+        setIsVerifyingSubscription(false);
+      }
+    };
+    
+    // Verificar a cada 1 minuto
+    const interval = setInterval(verifySubscription, 60000);
+    
+    return () => clearInterval(interval);
+  }, [session, userData, hasActiveSubscription, router]);
+
   // Effect for loading subscription history
   useEffect(() => {
-    // Only load history if we have the necessary data
+    // Only load history if we have the necessary data and we don't have it already
     const loadSubscriptionHistory = async () => {
-      if (!session?.user?.discord_id || !userData?.id) return;
+      if (!session?.user?.discord_id || !userData?.id || (subscriptionHistory && subscriptionHistory.length > 0)) return;
     
       try {
         setIsHistoryLoading(true);
@@ -415,7 +492,7 @@ export default function PerfilPage({ userData, subscriptionData, errorMessage, n
     };
   
     loadSubscriptionHistory();
-  }, [session, userData]);
+  }, [session, userData, subscriptionHistory]);
 
   // Optimized event handlers with useCallback
   const handleSaveSteamId = useCallback(async () => {
@@ -464,8 +541,20 @@ export default function PerfilPage({ userData, subscriptionData, errorMessage, n
   }, [steamId, router]);
 
   const handleRenewSubscription = useCallback(() => {
+    // NOVO: Se já está expirado, encaminhar para a página de planos baseado no plano anterior
     if (subscriptionData?.plan_id) {
-      router.push(`/checkout/${subscriptionData.plan_id}`);
+      // Mapear o UUID do banco para o ID do frontend
+      let planId = subscriptionData.plan_id;
+      
+      if (planId === '0b81cf06-ed81-49ce-8680-8f9d9edc932e') {
+        planId = 'vip-basic';
+      } else if (planId === '3994ff53-f110-4c8f-a492-ad988528006f') {
+        planId = 'vip-plus';
+      } else if (planId === '4de1c7bc-fc88-4af8-8f8c-580e34afd227') {
+        planId = 'vip-premium';
+      }
+      
+      router.push(`/checkout/${planId}`);
     } else {
       router.push('/planos');
     }
@@ -490,6 +579,18 @@ export default function PerfilPage({ userData, subscriptionData, errorMessage, n
   const handleCloseHistoryModal = useCallback(() => {
     setIsHistoryModalOpen(false);
   }, []);
+
+  // NOVO: Indicador de atualização
+  const renderVerificationStatus = () => {
+    if (!isVerifyingSubscription) return null;
+    
+    return (
+      <div className="fixed bottom-4 right-4 bg-dark-300/80 text-gray-300 text-xs py-1 px-3 rounded flex items-center backdrop-blur-sm">
+        <div className="animate-spin h-3 w-3 border-t-2 border-primary rounded-full mr-2"></div>
+        Verificando assinatura...
+      </div>
+    );
+  };
 
   return (
     <>
@@ -543,6 +644,9 @@ export default function PerfilPage({ userData, subscriptionData, errorMessage, n
         history={subscriptionHistory}
         loading={isHistoryLoading}
       />
+      
+      {/* Indicador de verificação da assinatura */}
+      {renderVerificationStatus()}
     </>
   );
 }
@@ -635,10 +739,89 @@ export async function getServerSideProps(context) {
       
       console.log('[Perfil] Usuário sincronizado com sucesso:', syncedUserData.id);
       
-      // Fetch active subscription data using the correct UUID
-      const subscriptionData = await getUserSubscription(syncedUserData.id);
+      // NOVO: Agora usamos a API '/api/subscriptions/verify' para verificar o status
+      try {
+        // Buscar assinatura atual usando a API
+        const subscriptionResponse = await fetch(`${process.env.NEXTAUTH_URL}/api/subscriptions/verify`, {
+          headers: {
+            'Cookie': context.req.headers.cookie || ''
+          }
+        });
+        
+        let subscriptionInfo = null;
+        let subscriptionsList = [];
+        
+        if (subscriptionResponse.ok) {
+          const data = await subscriptionResponse.json();
+          
+          subscriptionInfo = data.active ? data.subscription : null;
+          subscriptionsList = data.subscriptions || [];
+        }
+        
+        return {
+          props: {
+            userData: syncedUserData,
+            subscriptionData: subscriptionInfo,
+            subscriptionHistory: subscriptionsList
+          },
+        };
+      } catch (apiError) {
+        console.error('[Perfil] Erro ao verificar assinatura pela API:', apiError);
+        
+        // Fallback para o método antigo em caso de erro na API
+        const subscriptionData = await getUserSubscription(syncedUserData.id);
+        
+        const processedSubscription = subscriptionData ? {
+          ...subscriptionData,
+          created_at: subscriptionData.created_at ? new Date(subscriptionData.created_at).toISOString() : null,
+          updated_at: subscriptionData.updated_at ? new Date(subscriptionData.updated_at).toISOString() : null,
+          expires_at: subscriptionData.expires_at ? new Date(subscriptionData.expires_at).toISOString() : null
+        } : null;
+        
+        return {
+          props: {
+            userData: syncedUserData,
+            subscriptionData: processedSubscription,
+            subscriptionHistory: []
+          },
+        };
+      }
+    }
+    
+    console.log('[Perfil] Usuário encontrado, id:', userData.id);
+    
+    // NOVO: Agora usamos a API '/api/subscriptions/verify' para verificar o status
+    try {
+      // Buscar assinatura atual usando a API
+      const subscriptionResponse = await fetch(`${process.env.NEXTAUTH_URL}/api/subscriptions/verify`, {
+        headers: {
+          'Cookie': context.req.headers.cookie || ''
+        }
+      });
       
-      // Process data to ensure serialization
+      let subscriptionInfo = null;
+      let subscriptionsList = [];
+      
+      if (subscriptionResponse.ok) {
+        const data = await subscriptionResponse.json();
+        
+        subscriptionInfo = data.active ? data.subscription : null;
+        subscriptionsList = data.subscriptions || [];
+      }
+      
+      return {
+        props: {
+          userData: userData,
+          subscriptionData: subscriptionInfo,
+          subscriptionHistory: subscriptionsList
+        },
+      };
+    } catch (apiError) {
+      console.error('[Perfil] Erro ao verificar assinatura pela API:', apiError);
+      
+      // Fallback para o método antigo em caso de erro na API
+      const subscriptionData = await getUserSubscription(userData.id);
+      
       const processedSubscription = subscriptionData ? {
         ...subscriptionData,
         created_at: subscriptionData.created_at ? new Date(subscriptionData.created_at).toISOString() : null,
@@ -648,31 +831,12 @@ export async function getServerSideProps(context) {
       
       return {
         props: {
-          userData: syncedUserData || null,
+          userData: userData,
           subscriptionData: processedSubscription,
+          subscriptionHistory: []
         },
       };
     }
-    
-    console.log('[Perfil] Usuário encontrado, id:', userData.id);
-    
-    // Fetch active subscription data using the correct UUID
-    const subscriptionData = await getUserSubscription(userData.id);
-    
-    // Process data to ensure serialization
-    const processedSubscription = subscriptionData ? {
-      ...subscriptionData,
-      created_at: subscriptionData.created_at ? new Date(subscriptionData.created_at).toISOString() : null,
-      updated_at: subscriptionData.updated_at ? new Date(subscriptionData.updated_at).toISOString() : null,
-      expires_at: subscriptionData.expires_at ? new Date(subscriptionData.expires_at).toISOString() : null
-    } : null;
-    
-    return {
-      props: {
-        userData: userData || null,
-        subscriptionData: processedSubscription,
-      },
-    };
   } catch (error) {
     console.error('[Perfil] Erro ao buscar dados do perfil:', error);
     

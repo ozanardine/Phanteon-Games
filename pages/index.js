@@ -30,52 +30,107 @@ const AnimatedBackground = () => (
   </div>
 );
 
-// Server status card component
-const ServerStatusCard = ({ name, players, maxPlayers, status }) => (
-  <div className="relative bg-dark-400 rounded-lg overflow-hidden border border-dark-200 shadow-lg hover:shadow-xl transform transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 group">
-    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary/50 to-primary"></div>
-    <div className="p-5">
-      <div className="flex justify-between mb-4">
-        <div className="flex items-center">
-          <SiRust className="text-primary mr-2 text-lg" />
-          <h3 className="font-bold text-white">{name}</h3>
-        </div>
-        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-          status === 'online' ? 'bg-green-900/20 text-green-500' : 'bg-red-900/20 text-red-500'
-        }`}>
-          {status === 'online' ? 'Online' : 'Offline'}
-        </span>
-      </div>
-      
-      <div className="space-y-3">
-        <div>
-          <div className="flex justify-between items-center mb-1">
-            <span className="text-gray-400 text-sm">Players</span>
-            <span className="text-white text-sm font-medium">{players}/{maxPlayers}</span>
-          </div>
-          <div className="w-full bg-dark-300 rounded-full h-1.5">
-            <div className="h-1.5 rounded-full bg-primary transition-all duration-500 group-hover:bg-gradient-to-r from-primary to-orange-400" 
-              style={{ width: `${Math.min((players / maxPlayers) * 100, 100)}%` }}></div>
-          </div>
-        </div>
+// Server status card component - ATUALIZADO PARA DADOS REAIS
+const ServerStatusCard = () => {
+  const [serverData, setServerData] = useState({
+    name: "Carregando...",
+    players: 0,
+    maxPlayers: 0,
+    status: "offline"
+  });
+  const [isLoading, setIsLoading] = useState(true);
+  const [communitySize, setCommunitySize] = useState(0);
+
+  useEffect(() => {
+    const fetchServerData = async () => {
+      try {
+        const response = await fetch('/api/servers');
+        if (response.ok) {
+          const servers = await response.json();
+          if (servers && servers.length > 0) {
+            // Pegar o primeiro servidor da lista
+            setServerData({
+              name: servers[0].name,
+              players: servers[0].players,
+              maxPlayers: servers[0].maxPlayers,
+              status: servers[0].status
+            });
+          }
+        }
         
-        <div className="flex justify-between items-center text-sm">
-          <span className="text-gray-400">
-            <FaUsers className="inline mr-1 text-primary" /> Comunidade Ativa
-          </span>
-          <span className="text-white font-medium group-hover:text-primary transition-colors">2.854+</span>
-        </div>
+        // Também buscar estatísticas da comunidade
+        const statsResponse = await fetch('/api/stats/overview');
+        if (statsResponse.ok) {
+          const statsData = await statsResponse.json();
+          setCommunitySize(statsData.totalPlayers || 0);
+        }
+      } catch (error) {
+        console.error("Error fetching server data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchServerData();
+    // Atualizar a cada 1 minuto
+    const interval = setInterval(fetchServerData, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="relative bg-dark-400 rounded-lg overflow-hidden border border-dark-200 shadow-lg hover:shadow-xl transform transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 group">
+      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary/50 to-primary"></div>
+      <div className="p-5">
+        {isLoading ? (
+          <div className="flex items-center justify-center h-32">
+            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+          </div>
+        ) : (
+          <>
+            <div className="flex justify-between mb-4">
+              <div className="flex items-center">
+                <SiRust className="text-primary mr-2 text-lg" />
+                <h3 className="font-bold text-white">{serverData.name}</h3>
+              </div>
+              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                serverData.status === 'online' ? 'bg-green-900/20 text-green-500' : 'bg-red-900/20 text-red-500'
+              }`}>
+                {serverData.status === 'online' ? 'Online' : 'Offline'}
+              </span>
+            </div>
+            
+            <div className="space-y-3">
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-gray-400 text-sm">Players</span>
+                  <span className="text-white text-sm font-medium">{serverData.players}/{serverData.maxPlayers}</span>
+                </div>
+                <div className="w-full bg-dark-300 rounded-full h-1.5">
+                  <div className="h-1.5 rounded-full bg-primary transition-all duration-500 group-hover:bg-gradient-to-r from-primary to-orange-400" 
+                    style={{ width: `${Math.min((serverData.players / serverData.maxPlayers) * 100, 100)}%` }}></div>
+                </div>
+              </div>
+              
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-gray-400">
+                  <FaUsers className="inline mr-1 text-primary" /> Comunidade Ativa
+                </span>
+                <span className="text-white font-medium group-hover:text-primary transition-colors">{communitySize}+</span>
+              </div>
+            </div>
+            
+            <Link 
+              href="/servers" 
+              className="flex items-center justify-center w-full mt-4 py-2 bg-dark-300 rounded text-gray-300 group-hover:text-primary transition-all hover:bg-dark-200"
+            >
+              Ver detalhes <FaChevronRight className="ml-1 text-xs transition-transform group-hover:translate-x-1" />
+            </Link>
+          </>
+        )}
       </div>
-      
-      <Link 
-        href="/servers" 
-        className="flex items-center justify-center w-full mt-4 py-2 bg-dark-300 rounded text-gray-300 group-hover:text-primary transition-all hover:bg-dark-200"
-      >
-        Ver detalhes <FaChevronRight className="ml-1 text-xs transition-transform group-hover:translate-x-1" />
-      </Link>
     </div>
-  </div>
-);
+  );
+};
 
 // Testimonial component
 const Testimonial = ({ name, text, avatar }) => (
@@ -230,10 +285,38 @@ export default function Home() {
   const router = useRouter();
   const [isScrolled, setIsScrolled] = useState(false);
   
-  const playerCount = useCounter(7, 0, 1500, 200);
-  const serverCount = useCounter(1, 0, 1000, 200);
-  const plansCount = useCounter(2, 0, 2000, 200);
-  //                useCounter(end, start, duration, delay)
+  // NOVO: Estado para estatísticas reais
+  const [stats, setStats] = useState({
+    playerCount: 0,
+    serverCount: 0,
+    plansCount: 0
+  });
+  
+  // Buscar estatísticas reais
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const response = await fetch('/api/stats/overview');
+        if (response.ok) {
+          const data = await response.json();
+          setStats({
+            playerCount: data.totalPlayers || 0,
+            serverCount: data.totalServers || 0,
+            plansCount: data.activeSubscriptions || 0
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching stats:", error);
+      }
+    };
+    
+    fetchStats();
+  }, []);
+  
+  // Usar os dados reais nas animações de contador
+  const playerCount = useCounter(stats.playerCount, 0, 1500, 200);
+  const serverCount = useCounter(stats.serverCount, 0, 1000, 200);
+  const plansCount = useCounter(stats.plansCount, 0, 2000, 200);
 
   // Verifica se o usuário foi redirecionado para login
   useEffect(() => {
@@ -375,18 +458,13 @@ export default function Home() {
             </h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <ServerStatusCard
-                name="Rust Survival #1"
-                players={10}
-                maxPlayers={60}
-                status="online"
-              />
+              <ServerStatusCard />
             </div>
           </div>
         </div>
       </section>
 
-      {/* Stats Section */}
+      {/* Stats Section - ATUALIZADO PARA DADOS REAIS */}
       <section id="stats-section" className="py-12 bg-gradient-to-r from-dark-400 to-dark-300 relative">
         <div className="container-custom mx-auto px-4">
           <div className="flex flex-wrap justify-center">
@@ -403,7 +481,7 @@ export default function Home() {
               
               <div className="text-center p-6 bg-dark-400/50 rounded-lg border border-dark-200 backdrop-blur-sm">
                 <h2 className="text-4xl font-bold text-primary mb-2">{plansCount.toLocaleString()}+</h2>
-                <p className="text-gray-300">Kits Resgatados</p>
+                <p className="text-gray-300">Assinaturas VIP</p>
               </div>
             </div>
           </div>

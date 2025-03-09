@@ -16,6 +16,7 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import RustMapPreview from '../../components/servers/RustMapPreview';
 import Leaderboard from '../../components/servers/Leaderboard';
 import { toast } from 'react-hot-toast';
+import { useSocket, useSocketEvent } from '../../lib/socket-client';
 
 export default function ServerDetailPage() {
   const router = useRouter();
@@ -27,6 +28,8 @@ export default function ServerDetailPage() {
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
+  // Socket.io para atualizações em tempo real
+  const { socket, isConnected } = useSocket();
 
   const tabs = [
     { id: 'info', label: 'Informações', icon: <FiInfo /> },
@@ -41,6 +44,53 @@ export default function ServerDetailPage() {
       setActiveTab(initialTab);
     }
   }, [initialTab]);
+
+  // Configurar evento socket.io para atualizações em tempo real
+  useSocketEvent('server_update', (data) => {
+    if (data && data.server_id === id) {
+      // Atualizar apenas os dados do servidor, preservando o resto do estado
+      setServerData(prevData => {
+        if (!prevData) return null;
+        
+        // Atualizar apenas as propriedades relevantes do servidor
+        return {
+          ...prevData,
+          server: {
+            ...prevData.server,
+            players: data.online_players || prevData.server.players,
+            maxPlayers: data.max_players || prevData.server.maxPlayers,
+            status: data.status || prevData.server.status
+          }
+        };
+      });
+    }
+  });
+
+  // Também escutar por eventos do servidor
+  useSocketEvent('server_event', (eventData) => {
+    if (eventData && eventData.server_id === id) {
+      setServerData(prevData => {
+        if (!prevData) return null;
+        
+        // Formatar o novo evento
+        const newEvent = {
+          id: eventData.id || `event-${Date.now()}`,
+          title: eventData.event_type
+            ? eventData.event_type.replace('event.', '').replace('player.', '').split('.').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+            : 'Novo Evento',
+          description: eventData.payload?.message || "Evento de servidor",
+          date: eventData.timestamp || new Date().toISOString(),
+          image: "/images/events/wipe.jpg"
+        };
+
+        // Adicionar o novo evento ao início da lista
+        return {
+          ...prevData,
+          events: [newEvent, ...prevData.events.slice(0, 9)] // Manter apenas os 10 mais recentes
+        };
+      });
+    }
+  });
 
   const fetchServerDetails = async () => {
     if (!id) return;
@@ -149,6 +199,18 @@ export default function ServerDetailPage() {
     if (percentage < 30) return 'bg-green-500';
     if (percentage < 70) return 'bg-yellow-500';
     return 'bg-red-500';
+  };
+
+  // Status de conexão do Socket.io
+  const renderSocketStatus = () => {
+    if (!socket) return null;
+    
+    return (
+      <div className="ml-2 inline-flex items-center">
+        <span className={`w-2 h-2 rounded-full mr-1 ${isConnected ? 'bg-green-500' : 'bg-gray-500'}`}></span>
+        <span className="text-xs text-gray-400">{isConnected ? 'Tempo real' : 'Offline'}</span>
+      </div>
+    );
   };
 
   // Display loading state
@@ -287,6 +349,7 @@ export default function ServerDetailPage() {
                       {server.modded && (
                         <Card.Badge variant="warning">Modded</Card.Badge>
                       )}
+                      {renderSocketStatus()}
                     </div>
                   </div>
                 </div>
